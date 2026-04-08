@@ -1,13 +1,12 @@
 import cv2
-import pyttsx3
 import numpy as np
+import winsound
 
-# ---------------- VOICE ---------------- #
-engine = pyttsx3.init()
-
-def alert():
-    engine.say("Wake up! You are drowsy")
-    engine.runAndWait()
+# ---------------- BEEP FUNCTION ---------------- #
+def alert_beep():
+    frequency = 2000   # Hz (sound pitch)
+    duration = 500     # ms (0.5 second)
+    winsound.Beep(frequency, duration)
 
 # ---------------- MODEL PATH ---------------- #
 prototxt = r"C:\Users\DELL USER\projects\drowsiness_detect_system\deploy.prototxt.txt"
@@ -20,6 +19,9 @@ cap = cv2.VideoCapture(0)
 
 closed_frames = 0
 FRAME_LIMIT = 15
+
+# 🔥 Cooldown control (important)
+alert_active = False
 
 while True:
     ret, frame = cap.read()
@@ -42,19 +44,17 @@ while True:
             box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
             (x1, y1, x2, y2) = box.astype("int")
 
-            # 🔥 FIX: Clamp coordinates
+            # Clamp coordinates
             x1 = max(0, x1)
             y1 = max(0, y1)
             x2 = min(w, x2)
             y2 = min(h, y2)
 
-            # 🔥 Skip invalid boxes
             if x2 <= x1 or y2 <= y1:
                 continue
 
             face = frame[y1:y2, x1:x2]
 
-            # 🔥 Skip empty face
             if face is None or face.size == 0:
                 continue
 
@@ -70,13 +70,18 @@ while True:
                 closed_frames += 1
             else:
                 closed_frames = 0
+                alert_active = False  # reset alert when eyes open
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
+    # ---------------- ALERT ---------------- #
     if closed_frames > FRAME_LIMIT:
         cv2.putText(frame, "DROWSY ALERT!", (50, 100),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
-        alert()
+
+        if not alert_active:
+            alert_beep()
+            alert_active = True  # prevent continuous spam
 
     cv2.imshow("Drowsiness Detection", frame)
 
